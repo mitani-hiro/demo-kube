@@ -2,8 +2,8 @@ FROM golang:1.24-alpine
 
 WORKDIR /app
 
-COPY ./common/go.mod ./common/
-COPY ./common/ ./common/
+COPY ./backend/common/go.mod ./backend/common/
+COPY ./backend/common/ ./backend/common/
 
 COPY ./backend/kafka/producer/go.mod ./backend/kafka/producer/
 COPY ./backend/kafka/producer/ ./backend/kafka/producer/
