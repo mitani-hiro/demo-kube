@@ -34,19 +34,19 @@ jobs:
 
       - name: Build producer Docker image
         run: |
-          docker build -t $ECR_REPOSITORY:latest -f backend/kafka/producer/Dockerfile .
+          docker build -t $ECR_REPOSITORY:producer -f backend/kafka/producer/Dockerfile .
 
       - name: Build consumer Docker image
         run: |
-          docker build -t $ECR_REPOSITORY:latest -f backend/kafka/consumer/Dockerfile .
+          docker build -t $ECR_REPOSITORY:consumer -f backend/kafka/consumer/Dockerfile .
 
       - name: Push producer image to ECR Public
         run: |
-          docker push $ECR_REPOSITORY:latest
+          docker push $ECR_REPOSITORY:producer
 
       - name: Push consumer image to ECR Public
         run: |
-          docker push $ECR_REPOSITORY:latest
+          docker push $ECR_REPOSITORY:consumer
 
       - name: Update kubeconfig
         run: |
