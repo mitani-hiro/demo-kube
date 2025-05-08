@@ -36,11 +36,11 @@ jobs:
 
       - name: Build producer Docker image
         run: |
-          docker build -t $ECR_REGISTRY/$PRODUCER_IMAGE:latest backend/kafka/producer
+          docker build -t $ECR_REGISTRY/$PRODUCER_IMAGE:latest -f backend/kafka/producer/Dockerfile backend/kafka/producer
 
       - name: Build consumer Docker image
         run: |
-          docker build -t $ECR_REGISTRY/$CONSUMER_IMAGE:latest backend/kafka/consumer
+          docker build -t $ECR_REGISTRY/$CONSUMER_IMAGE:latest -f backend/kafka/consumer/Dockerfile backend/kafka/consumer
 
       - name: Push producer image to ECR Public
         run: |
