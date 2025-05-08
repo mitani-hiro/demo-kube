@@ -2,13 +2,13 @@ FROM golang:1.24-alpine
 
 WORKDIR /app
 
-COPY ./common/go.mod ./common/
-COPY ./common/ ./common/
+COPY ./backend/common/go.mod ./backend/common/
+COPY ./backend/common/ ./backend/common/
 
-COPY ./kafka/consumer/go.mod ./kafka/consumer/
-COPY ./kafka/consumer/ ./kafka/consumer/
+COPY ./backend/kafka/consumer/go.mod ./backend/kafka/consumer/
+COPY ./backend/kafka/consumer/ ./backend/kafka/consumer/
 
-WORKDIR /app/kafka/consumer
+WORKDIR /app/backend/kafka/consumer
 
 RUN go mod download
 
