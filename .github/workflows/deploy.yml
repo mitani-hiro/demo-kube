@@ -2,8 +2,7 @@ name: Build and Deploy to EKS
 
 on:
   push:
-    branches:
-      - main
+    branches: ["develop"]
 
 permissions:
   id-token: write
