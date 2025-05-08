@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: kafka-producer
+spec:
+  containers:
+    - name: producer
+      image: producer:latest
+      imagePullPolicy: IfNotPresent
+      env:
+        - name: KAFKA_BROKER
+          value: "kafka-service:9092" # Kubernetes内のKafkaのサービス名
+      resources:
+        requests:
+          memory: "128Mi"
+          cpu: "250m"
+        limits:
+          memory: "256Mi"
+          cpu: "500m"
