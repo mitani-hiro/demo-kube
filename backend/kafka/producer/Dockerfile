@@ -5,10 +5,10 @@ WORKDIR /app
 COPY ./common/go.mod ./common/
 COPY ./common/ ./common/
 
-COPY ./kafka/producer/go.mod ./kafka/producer/
-COPY ./kafka/producer/ ./kafka/producer/
+COPY ./backend/kafka/producer/go.mod ./backend/kafka/producer/
+COPY ./backend/kafka/producer/ ./backend/kafka/producer/
 
-WORKDIR /app/kafka/producer
+WORKDIR /app/backend/kafka/producer
 
 RUN go mod download
 
