@@ -17,9 +17,7 @@ jobs:
       AWS_REGION: ap-northeast-1
       CLUSTER_NAME: eks-cluster-demo
       NAMESPACE: demo
-      ECR_REGISTRY: public.ecr.aws/h7f0r1p2
-      PRODUCER_IMAGE: demo-kube-producer
-      CONSUMER_IMAGE: demo-kube-consumer
+      ECR_REPOSITORY: public.ecr.aws/h7f0r1p2/demo-kube
 
     steps:
       - name: Checkout source code
@@ -36,19 +34,19 @@ jobs:
 
       - name: Build producer Docker image
         run: |
-          docker build -t $ECR_REGISTRY/$PRODUCER_IMAGE:latest -f backend/kafka/producer/Dockerfile .
+          docker build -t $ECR_REPOSITORY:latest -f backend/kafka/producer/Dockerfile .
 
       - name: Build consumer Docker image
         run: |
-          docker build -t $ECR_REGISTRY/$CONSUMER_IMAGE:latest -f backend/kafka/consumer/Dockerfile .
+          docker build -t $ECR_REPOSITORY:latest -f backend/kafka/consumer/Dockerfile .
 
       - name: Push producer image to ECR Public
         run: |
-          docker push $ECR_REGISTRY/$PRODUCER_IMAGE:latest
+          docker push $ECR_REPOSITORY:latest
 
       - name: Push consumer image to ECR Public
         run: |
-          docker push $ECR_REGISTRY/$CONSUMER_IMAGE:latest
+          docker push $ECR_REPOSITORY:latest
 
       - name: Update kubeconfig
         run: |
