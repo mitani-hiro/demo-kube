@@ -6,7 +6,7 @@ metadata:
 spec:
   containers:
     - name: consumer
-      image: public.ecr.aws/h7f0r1p2/demo-kube:latest
+      image: public.ecr.aws/h7f0r1p2/demo-kube:consumer
       imagePullPolicy: Always
       env:
         - name: KAFKA_BROKER
