@@ -48,17 +48,11 @@ jobs:
         run: |
           docker push $ECR_REPOSITORY:consumer
 
-      - name: Set up kubeconfig
+      - name: Set up kubeconfig manually
         run: |
-          mkdir -p ~/.kube
-          aws eks update-kubeconfig \
-            --region $AWS_REGION \
+          aws eks --region $AWS_REGION update-kubeconfig \
             --name $CLUSTER_NAME \
-            --kubeconfig ~/.kube/config
-
-      - name: Verify access to EKS
-        run: |
-          kubectl get nodes
+            --role-arn arn:aws:iam::421156463971:role/eks-oidc-deloy-role
 
       - name: Deploy Kafka and Apps to EKS
         run: |
