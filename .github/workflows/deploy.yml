@@ -54,11 +54,6 @@ jobs:
             --name $CLUSTER_NAME \
             --region $AWS_REGION
 
-      - name: Check kubectl connectivity
-        run: |
-          kubectl version --short
-          kubectl config view --minify
-
       - name: Deploy Kafka and Apps to EKS
         run: |
           kubectl apply -n $NAMESPACE -f backend/deployment/kafka-deployment_dev.yaml
