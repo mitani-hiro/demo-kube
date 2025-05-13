@@ -48,11 +48,19 @@ jobs:
         run: |
           docker push $ECR_REPOSITORY:consumer
 
-      - name: Update kubeconfig
+      - name: Install jq
+        run: sudo apt-get install -y jq
+
+      - name: Configure kubectl for EKS
         run: |
-          aws eks update-kubeconfig \
-            --name $CLUSTER_NAME \
-            --region $AWS_REGION
+          export KUBE_API_SERVER=$(aws eks describe-cluster --name $CLUSTER_NAME --region $AWS_REGION --query "cluster.endpoint" --output text)
+          export KUBE_CA=$(aws eks describe-cluster --name $CLUSTER_NAME --region $AWS_REGION --query "cluster.certificateAuthority.data" --output text)
+          export KUBE_TOKEN=$(aws eks get-token --cluster-name $CLUSTER_NAME --region $AWS_REGION --output text | jq -r .status.token)
+
+          kubectl config set-cluster eks-cluster-demo --server=$KUBE_API_SERVER --certificate-authority=<(echo $KUBE_CA | base64 -d) --embed-certs=true
+          kubectl config set-credentials github-actions --token=$KUBE_TOKEN
+          kubectl config set-context github-actions --cluster=eks-cluster-demo --user=github-actions
+          kubectl config use-context github-actions
 
       - name: Deploy Kafka and Apps to EKS
         run: |
