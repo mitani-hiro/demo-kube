@@ -52,8 +52,12 @@ jobs:
         run: |
           aws eks update-kubeconfig \
             --name $CLUSTER_NAME \
-            --region $AWS_REGION \
-            --role-arn arn:aws:iam::421156463971:role/eks-oidc-deloy-role
+            --region $AWS_REGION
+
+      - name: Check kubectl connectivity
+        run: |
+          kubectl version --short
+          kubectl config view --minify
 
       - name: Deploy Kafka and Apps to EKS
         run: |
