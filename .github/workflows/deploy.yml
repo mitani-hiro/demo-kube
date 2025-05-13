@@ -51,8 +51,7 @@ jobs:
       - name: Set up kubeconfig manually
         run: |
           aws eks --region $AWS_REGION update-kubeconfig \
-            --name $CLUSTER_NAME \
-            --role-arn arn:aws:iam::421156463971:role/eks-oidc-deloy-role
+            --name $CLUSTER_NAME
 
       - name: Deploy Kafka and Apps to EKS
         run: |
