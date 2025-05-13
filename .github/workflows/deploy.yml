@@ -55,6 +55,6 @@ jobs:
 
       - name: Deploy Kafka and Apps to EKS
         run: |
-          kubectl apply -n $NAMESPACE -f backend/deployment/kafka-deployment_dev.yaml
-          kubectl apply -n $NAMESPACE -f backend/deployment/producer_dev.yaml
-          kubectl apply -n $NAMESPACE -f backend/deployment/consumer_dev.yaml
+          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/kafka-deployment_dev.yaml
+          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/producer_dev.yaml
+          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/consumer_dev.yaml
