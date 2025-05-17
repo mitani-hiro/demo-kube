@@ -3,7 +3,7 @@ kind: Pod
 metadata:
   name: kafka-producer
   namespace: demo
-  matchLabels:
+  labels:
     app: kafka
 spec:
   containers:
