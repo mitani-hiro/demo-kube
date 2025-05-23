@@ -8,7 +8,7 @@ metadata:
 spec:
   containers:
     - name: api-server
-      image: api:latest
+      image: public.ecr.aws/h7f0r1p2/demo-kube:api
       imagePullPolicy: IfNotPresent
       ports:
         - containerPort: 8080
