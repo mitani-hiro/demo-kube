@@ -1,13 +1,13 @@
 # クラスタ
 
 ```sh
-kind create cluster --name demo-cluster --config demo-cluster.yaml
+kind create cluster --name demo-cluster --config backend/deployment/demo-cluster.yaml
 ```
 
 # kafka デプロイ
 
 ```sh
-kubectl apply -f deployment/kafka-deployment.yaml
+kubectl apply -f backend/deployment/kafka-deployment.yaml
 ```
 
 # kafka
@@ -39,20 +39,24 @@ kubectl port-forward svc/kafka-ui 30080:8080
 # ビルド
 
 ```sh
-docker build -t producer:latest -f kafka/producer/Dockerfile .
-docker build -t consumer:latest -f kafka/consumer/Dockerfile .
+docker build -t api:latest -f backend/api/Dockerfile .
+docker build -t producer:latest -f backend/kafka/producer/Dockerfile .
+docker build -t consumer:latest -f backend/kafka/consumer/Dockerfile .
 
 # 作成済みの場合
+kind load docker-image api:latest --name demo-cluster
+kubectl delete pod api-server
+
 kind load docker-image producer:latest --name demo-cluster
 kubectl delete pod kafka-producer
+
 kind load docker-image consumer:latest --name demo-cluster
 kubectl delete pod kafka-consumer
 
-kubectl apply -f deployment/producer.yaml
-kubectl apply -f deployment/consumer.yaml
+kubectl apply -f backend/deployment/api.yaml
+kubectl apply -f backend/deployment/producer.yaml
+kubectl apply -f backend/deployment/consumer.yaml
 
 kubectl get pods
 
 ```
-
-kind load docker-image producer:latest --name demo-cluster

@@ -40,6 +40,10 @@ jobs:
         run: |
           docker build -t $ECR_REPOSITORY:consumer -f backend/kafka/consumer/Dockerfile .
 
+      - name: Build api Docker image
+        run: |
+          docker build -t $ECR_REPOSITORY:api -f backend/api/Dockerfile .
+
       - name: Push producer image to ECR Public
         run: |
           docker push $ECR_REPOSITORY:producer
@@ -47,6 +51,10 @@ jobs:
       - name: Push consumer image to ECR Public
         run: |
           docker push $ECR_REPOSITORY:consumer
+
+      - name: Push api image to ECR Public
+        run: |
+          docker push $ECR_REPOSITORY:api
 
       - name: Set up kubeconfig manually
         run: |
@@ -58,3 +66,4 @@ jobs:
           kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/kafka-deployment_dev.yaml
           kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/producer_dev.yaml
           kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/consumer_dev.yaml
+          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/api_dev.yaml

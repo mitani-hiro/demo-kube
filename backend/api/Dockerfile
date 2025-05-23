@@ -8,10 +8,10 @@ COPY ./backend/proto/ ./backend/proto/
 COPY ./backend/common/go.mod ./backend/common/
 COPY ./backend/common/ ./backend/common/
 
-COPY ./backend/kafka/producer/go.mod ./backend/kafka/producer/
-COPY ./backend/kafka/producer/ ./backend/kafka/producer/
+COPY ./backend/api/go.mod ./backend/api/
+COPY ./backend/api/ ./backend/api/
 
-WORKDIR /app/backend/kafka/producer
+WORKDIR /app/backend/api
 
 RUN go mod download
 
@@ -21,4 +21,4 @@ RUN go build -o /app/main main.go
 
 WORKDIR /app
 
-CMD [ "/app/main" ]
+CMD [ "/app/main" ] 

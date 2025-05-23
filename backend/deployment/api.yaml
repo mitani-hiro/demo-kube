@@ -1,29 +1,26 @@
 apiVersion: v1
 kind: Pod
 metadata:
-  name: kafka-producer
-  labels:
-    app: kafka
+  name: api-server
 spec:
   containers:
-    - name: producer
-      image: producer:latest
+    - name: api-server
+      image: api:latest
       imagePullPolicy: IfNotPresent
       ports:
-        - containerPort: 50051
-      env:
-        - name: KAFKA_BROKER
-          value: "kafka-service:9092"
+        - containerPort: 8080
       readinessProbe:
-        tcpSocket:
-          port: 50051
+        httpGet:
+          path: /api/health
+          port: 8080
         initialDelaySeconds: 5
         periodSeconds: 10
       livenessProbe:
-        tcpSocket:
-          port: 50051
-        initialDelaySeconds: 10
-        periodSeconds: 15
+            httpGet:
+              path: /api/health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 15
       resources:
         requests:
           memory: "128Mi"
@@ -35,11 +32,11 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: producer-service
+  name: api-service
 spec:
   selector:
-    app: kafka
+    app: api-server
   ports:
     - protocol: TCP
-      port: 50051
-      targetPort: 50051
+      port: 8080
+      targetPort: 8080 
