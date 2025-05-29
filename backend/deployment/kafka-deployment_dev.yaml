@@ -46,6 +46,8 @@ spec:
               value: "CONTROLLER"
             - name: KAFKA_CFG_INTER_BROKER_LISTENER_NAME
               value: "PLAINTEXT"
+            - name: KAFKA_CFG_ADVERTISED_LISTENERS
+              value: PLAINTEXT://kafka-service.demo.svc.cluster.local:9092
           ports:
             - containerPort: 9092
             - containerPort: 9093

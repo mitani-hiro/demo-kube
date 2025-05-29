@@ -5,6 +5,7 @@ metadata:
   namespace: demo
   labels:
     app: kafka
+    component: producer
 spec:
   containers:
     - name: producer
@@ -41,6 +42,7 @@ metadata:
 spec:
   selector:
     app: kafka
+    component: producer
   ports:
     - protocol: TCP
       port: 50051
