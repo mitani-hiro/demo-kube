@@ -18,5 +18,12 @@ func NewRouter() *gin.Engine {
 
 	rg.POST("/hoge", handler.Hoge)
 
+	// Policy routes
+	rg.POST("/policies", handler.CreatePolicy)
+	rg.GET("/policies/:id", handler.GetPolicy)
+	rg.PUT("/policies/:id", handler.UpdatePolicy)
+	rg.DELETE("/policies/:id", handler.DeletePolicy)
+	rg.GET("/policies", handler.ListPolicies)
+
 	return r
 }
