@@ -1,0 +1,37 @@
+{
+  "users": {
+    "alice": {
+      "id": "alice",
+      "name": "Alice Smith",
+      "role": "admin",
+      "department": "engineering"
+    },
+    "bob": {
+      "id": "bob", 
+      "name": "Bob Johnson",
+      "role": "user",
+      "department": "marketing"
+    },
+    "charlie": {
+      "id": "charlie",
+      "name": "Charlie Brown", 
+      "role": "editor",
+      "department": "engineering"
+    }
+  },
+  "departments": {
+    "engineering": {
+      "name": "Engineering",
+      "resources": ["api", "database", "infrastructure"]
+    },
+    "marketing": {
+      "name": "Marketing", 
+      "resources": ["campaigns", "analytics"]
+    }
+  },
+  "trusted_registries": [
+    "trusted-registry.example.com",
+    "gcr.io/company-project",
+    "company.azurecr.io"
+  ]
+}

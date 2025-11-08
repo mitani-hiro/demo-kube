@@ -1,0 +1,421 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: swagger-ui-config
+data:
+  api.yaml: |
+    openapi: 3.0.3
+    info:
+      title: Demo Kube API
+      description: API for the demo-kube microservices project
+      version: 1.0.0
+    servers:
+      - url: http://localhost:8080/api
+        description: Local development server
+
+    paths:
+      /health:
+        get:
+          summary: Health check endpoint
+          operationId: healthCheck
+          responses:
+            '200':
+              description: Service is healthy
+              content:
+                application/json:
+                  schema:
+                    type: object
+
+      /hoge:
+        post:
+          summary: Hoge endpoint - calls user service via gRPC
+          operationId: hoge
+          responses:
+            '200':
+              description: Successful response from user service
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/GetUserResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+
+      /policies:
+        post:
+          summary: Create a new policy
+          operationId: createPolicy
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/CreatePolicyRequest'
+          responses:
+            '201':
+              description: Policy created successfully
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/CreatePolicyResponse'
+            '400':
+              description: Bad request
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+
+        get:
+          summary: List policies with pagination
+          operationId: listPolicies
+          parameters:
+            - name: page
+              in: query
+              description: "Page number (default: 1)"
+              schema:
+                type: integer
+                minimum: 1
+                default: 1
+            - name: page_size
+              in: query
+              description: "Number of items per page (default: 10)"
+              schema:
+                type: integer
+                minimum: 1
+                default: 10
+          responses:
+            '200':
+              description: List of policies
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ListPoliciesResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+
+      /policies/{id}:
+        get:
+          summary: Get a policy by ID
+          operationId: getPolicy
+          parameters:
+            - name: id
+              in: path
+              required: true
+              description: Policy ID
+              schema:
+                type: integer
+                format: int64
+          responses:
+            '200':
+              description: Policy found
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/GetPolicyResponse'
+            '400':
+              description: Invalid policy ID
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '404':
+              description: Policy not found
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+
+        put:
+          summary: Update a policy
+          operationId: updatePolicy
+          parameters:
+            - name: id
+              in: path
+              required: true
+              description: Policy ID
+              schema:
+                type: integer
+                format: int64
+          requestBody:
+            required: true
+            content:
+              application/json:
+                schema:
+                  $ref: '#/components/schemas/UpdatePolicyRequest'
+          responses:
+            '200':
+              description: Policy updated successfully
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/UpdatePolicyResponse'
+            '400':
+              description: Bad request
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '404':
+              description: Policy not found
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+
+        delete:
+          summary: Delete a policy
+          operationId: deletePolicy
+          parameters:
+            - name: id
+              in: path
+              required: true
+              description: Policy ID
+              schema:
+                type: integer
+                format: int64
+          responses:
+            '200':
+              description: Policy deleted successfully
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/DeletePolicyResponse'
+            '400':
+              description: Invalid policy ID
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '404':
+              description: Policy not found
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+            '500':
+              description: Internal server error
+              content:
+                application/json:
+                  schema:
+                    $ref: '#/components/schemas/ErrorResponse'
+
+    components:
+      schemas:
+        ErrorResponse:
+          type: object
+          properties:
+            error:
+              type: string
+              description: Error message
+          required:
+            - error
+
+        GetUserResponse:
+          type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+              description: User ID
+            name:
+              type: string
+              description: User name
+          required:
+            - id
+            - name
+
+        CreatePolicyRequest:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Policy name
+            description:
+              type: string
+              description: Policy description
+            rules:
+              type: string
+              description: Policy rules
+          required:
+            - name
+            - rules
+
+        UpdatePolicyRequest:
+          type: object
+          properties:
+            name:
+              type: string
+              description: Policy name
+            description:
+              type: string
+              description: Policy description
+            rules:
+              type: string
+              description: Policy rules
+          required:
+            - name
+            - rules
+
+        Status:
+          type: object
+          properties:
+            code:
+              type: integer
+              description: Status code
+            message:
+              type: string
+              description: Status message
+
+        Policy:
+          type: object
+          properties:
+            id:
+              type: integer
+              format: int64
+              description: Policy ID
+            name:
+              type: string
+              description: Policy name
+            description:
+              type: string
+              description: Policy description
+            rules:
+              type: string
+              description: Policy rules
+            created_at:
+              type: string
+              format: date-time
+              description: Creation timestamp
+            updated_at:
+              type: string
+              format: date-time
+              description: Last update timestamp
+
+        CreatePolicyResponse:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/Status'
+            policy:
+              $ref: '#/components/schemas/Policy'
+
+        GetPolicyResponse:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/Status'
+            policy:
+              $ref: '#/components/schemas/Policy'
+
+        UpdatePolicyResponse:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/Status'
+            policy:
+              $ref: '#/components/schemas/Policy'
+
+        DeletePolicyResponse:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/Status'
+
+        ListPoliciesResponse:
+          type: object
+          properties:
+            status:
+              $ref: '#/components/schemas/Status'
+            policies:
+              type: array
+              items:
+                $ref: '#/components/schemas/Policy'
+            total:
+              type: integer
+              description: Total number of policies
+            page:
+              type: integer
+              description: Current page number
+            page_size:
+              type: integer
+              description: Number of items per page
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: swagger-ui
+  labels:
+    app: swagger-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: swagger-ui
+  template:
+    metadata:
+      labels:
+        app: swagger-ui
+    spec:
+      containers:
+      - name: swagger-ui
+        image: swaggerapi/swagger-ui:latest
+        ports:
+        - containerPort: 8080
+        env:
+        - name: SWAGGER_JSON
+          value: "/app/api.yaml"
+        volumeMounts:
+        - name: api-spec
+          mountPath: /app/api.yaml
+          subPath: api.yaml
+        resources:
+          limits:
+            memory: "128Mi"
+            cpu: "100m"
+          requests:
+            memory: "64Mi"
+            cpu: "50m"
+      volumes:
+      - name: api-spec
+        configMap:
+          name: swagger-ui-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: swagger-ui
+  labels:
+    app: swagger-ui
+spec:
+  type: NodePort
+  ports:
+  - port: 8080
+    targetPort: 8080
+    nodePort: 30081
+  selector:
+    app: swagger-ui

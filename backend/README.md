@@ -1,13 +1,13 @@
 # クラスタ
 
 ```sh
-kind create cluster --name demo-cluster --config backend/deployment/demo-cluster.yaml
+kind create cluster --name demo-cluster --config backend/deployment/local/demo-cluster.yaml
 ```
 
 # kafka デプロイ
 
 ```sh
-kubectl apply -f backend/deployment/kafka-deployment.yaml
+kubectl apply -f backend/deployment/local/kafka-deployment_local.yaml
 ```
 
 # kafka
@@ -25,7 +25,7 @@ kafka-topics.sh --list --bootstrap-server localhost:9092
 # kafka ui デプロイ
 
 ```sh
-kubectl apply -f deployment/kafka-ui.yaml
+kubectl apply -f backend/deployment/local/kafka-ui.yaml
 ```
 
 # kafka ui 表示
@@ -34,6 +34,48 @@ kubectl apply -f deployment/kafka-ui.yaml
 
 ```sh
 kubectl port-forward svc/kafka-ui 30080:8080
+```
+
+# swagger ui デプロイ
+
+```sh
+kubectl apply -f deployment/swagger-ui.yaml
+```
+
+# swagger ui 表示
+
+ポートフォワーディングして`http://localhost:8081`にアクセスする。
+
+```sh
+kubectl port-forward svc/swagger-ui 8081:8080
+```
+
+# OPA デプロイ
+
+OPA のポリシーとデータを ConfigMap として作成してからデプロイします。
+
+```sh
+# ConfigMapを作成（backend/opaディレクトリのファイルから）
+kubectl create configmap opa-policies --from-file=trino_access_control.rego=backend/opa/trino_access_control.rego --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap opa-data --from-file=data.json=backend/opa/data.json --dry-run=client -o yaml | kubectl apply -f -
+
+# OPAをデプロイ
+kubectl apply -f backend/deployment/local/opa.yaml
+
+# 確認
+kubectl get pods | grep opa
+kubectl logs -f deployment/opa
+```
+
+ポリシーやデータを更新した場合は、ConfigMap を再作成して OPA ポッドを再起動してください。
+
+```sh
+# ConfigMapを更新
+kubectl create configmap opa-policies --from-file=trino_access_control.rego=backend/opa/trino_access_control.rego --dry-run=client -o yaml | kubectl apply -f -
+kubectl create configmap opa-data --from-file=data.json=backend/opa/data.json --dry-run=client -o yaml | kubectl apply -f -
+
+# OPAポッドを再起動
+kubectl rollout restart deployment/opa
 ```
 
 # ビルド
@@ -53,10 +95,36 @@ kubectl delete pod kafka-producer
 kind load docker-image consumer:latest --name demo-cluster
 kubectl delete pod kafka-consumer
 
-kubectl apply -f backend/deployment/api.yaml
-kubectl apply -f backend/deployment/producer.yaml
-kubectl apply -f backend/deployment/consumer.yaml
+kubectl apply -f backend/deployment/local/api.yaml
+kubectl apply -f backend/deployment/local/producer.yaml
+kubectl apply -f backend/deployment/local/consumer.yaml
 
 kubectl get pods
 
+```
+
+# terraform
+
+```sh
+terraform/generated/aws/eks
+
+terraform init
+
+terraform plan
+
+terraform apply
+```
+
+eks -> nat -> root_table
+
+```sh
+terraform plan -var="vpc_id=vpc-0f9c1286580033168" -var="nat_gateway_id=nat-05f66b5627bf5b464" -var="subnet_id=subnet-07eb31421fe856a7e"
+```
+
+```sh
+terraformer import aws \
+--resources=eks --regions=ap-northeast-1 --profile=default
+
+terraformer import aws \
+--resources=route_table --regions=ap-northeast-1 --profile=default
 ```

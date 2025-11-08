@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opa
+  namespace: default
+  labels:
+    app: opa
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: opa
+  template:
+    metadata:
+      labels:
+        app: opa
+    spec:
+      containers:
+      - name: opa
+        image: openpolicyagent/opa:latest
+        ports:
+        - containerPort: 8181
+        args:
+          - "run"
+          - "--server"
+          - "--addr=0.0.0.0:8181"
+          - "--diagnostic-addr=0.0.0.0:8282"
+          - "--set=decision_logs.console=true"
+          - "--ignore=.*"
+          - "/policies"
+          - "/data/data.json"
+        volumeMounts:
+        - name: opa-policies
+          mountPath: /policies
+        - name: opa-data
+          mountPath: /data
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "256Mi"
+            cpu: "200m"
+      volumes:
+      - name: opa-policies
+        configMap:
+          name: opa-policies
+      - name: opa-data
+        configMap:
+          name: opa-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opa
+  namespace: default
+spec:
+  selector:
+    app: opa
+  ports:
+  - name: http
+    protocol: TCP
+    port: 8181
+    targetPort: 8181
+  type: ClusterIP 
