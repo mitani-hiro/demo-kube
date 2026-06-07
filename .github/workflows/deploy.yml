@@ -129,6 +129,11 @@ jobs:
         env:
           WAF_ACL_ARN: ${{ vars.WAF_ACL_ARN }}
         run: |
+          # WAF ARN 未設定のまま ALB が WAF なしで公開される fail-open を防ぐ
+          if [ -z "$WAF_ACL_ARN" ]; then
+            echo "::error::WAF_ACL_ARN variable is not set; refusing to deploy without WAF"
+            exit 1
+          fi
           kubectl kustomize backend/deployment/overlays/develop \
             | envsubst '$WAF_ACL_ARN' \
             | kubectl apply -f -

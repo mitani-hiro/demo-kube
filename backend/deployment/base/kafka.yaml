@@ -57,10 +57,10 @@ spec:
           resources:
             requests:
               memory: "1Gi"
-              cpu: "500m"
+              cpu: "250m"
             limits:
               memory: "2Gi"
-              cpu: "1000m"
+              cpu: "500m"
           volumeMounts:
             # kafka-storage.sh format がデフォルト設定の /tmp/kraft-combined-logs を
             # フォーマットするため、log.dirs と一致させる必要がある
