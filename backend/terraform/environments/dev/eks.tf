@@ -42,7 +42,7 @@ module "eks" {
   # GitHub Actions からの kubectl 実行はアプリ namespace に限定（最小権限）
   access_entries = {
     github_actions = {
-      principal_arn = module.github_oidc_role.role_arn
+      principal_arn = data.aws_iam_role.gha_deploy.arn
 
       policy_associations = {
         edit = {

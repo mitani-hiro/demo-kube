@@ -1,6 +1,7 @@
 data "aws_caller_identity" "current" {}
 
-# GitHub Actions OIDC プロバイダーは他アプリと共用のため Terraform 管理外（参照のみ）
-data "aws_iam_openid_connect_provider" "github" {
-  url = "https://token.actions.githubusercontent.com"
+# GHA デプロイ用ロールは bootstrap 管理（destroy で消えると CI の AWS 認証が
+# すべて失敗するため）。dev からは access entry 用に参照のみ
+data "aws_iam_role" "gha_deploy" {
+  name = "${local.name_prefix}-gha-deploy-role"
 }

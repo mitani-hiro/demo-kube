@@ -8,11 +8,6 @@ output "e2e_codebuild_project_name" {
   value       = aws_codebuild_project.e2e.name
 }
 
-output "gha_deploy_role_arn" {
-  description = "GitHub Actions deploy role ARN (set as GitHub variable AWS_DEPLOY_ROLE_ARN)"
-  value       = module.github_oidc_role.role_arn
-}
-
 output "region" {
   description = "AWS region"
   value       = var.region
