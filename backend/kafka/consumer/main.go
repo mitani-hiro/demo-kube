@@ -25,7 +25,8 @@ func main() {
 		log.Fatalf("kafka not reachable: %v", err)
 	}
 
-	reader := ckafka.NewReader(broker, "test-topic", "test-consumer-group")
+	// groupID 空 = パーティション直読み（グループ参加のスタック回避）
+	reader := ckafka.NewReader(broker, "test-topic", "")
 	defer reader.Close()
 
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)

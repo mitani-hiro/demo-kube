@@ -35,12 +35,22 @@ func Ping(broker string) error {
 	return nil
 }
 
+// NewReader は groupID が空の場合パーティション 0 を直接読む。
+// グループ参加はコーディネーター未準備のタイミングで復旧不能にスタックするため、
+// 単一 consumer のデモではグループを使わない方が堅牢。
 func NewReader(broker, topic, groupID string) *kafka.Reader {
-	return kafka.NewReader(kafka.ReaderConfig{
+	cfg := kafka.ReaderConfig{
 		Brokers:  []string{broker},
 		Topic:    topic,
-		GroupID:  groupID,
 		MinBytes: 1,
 		MaxBytes: 10e6,
-	})
+	}
+	if groupID == "" {
+		cfg.Partition = 0
+		cfg.StartOffset = kafka.FirstOffset
+	} else {
+		cfg.GroupID = groupID
+	}
+
+	return kafka.NewReader(cfg)
 }

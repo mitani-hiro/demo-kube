@@ -160,9 +160,17 @@ jobs:
 
       - name: Verify consumer received message
         run: |
-          sleep 5
-          kubectl logs deployment/consumer -n "$NAMESPACE" --tail=20 | grep "received message" \
-            && echo "consumer consumption: OK"
+          # consumer の消費まで数十秒かかることがあるためリトライする
+          for i in $(seq 1 12); do
+            if kubectl logs deployment/consumer -n "$NAMESPACE" --tail=20 | grep "received message"; then
+              echo "consumer consumption: OK"
+              exit 0
+            fi
+            echo "waiting for consumer... ($i/12)"
+            sleep 5
+          done
+          echo "consumer did not receive any message"
+          exit 1
 
       - name: Verify WAF geo restriction (expect 403 from US runner)
         run: |
