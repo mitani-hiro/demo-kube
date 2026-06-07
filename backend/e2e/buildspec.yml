@@ -5,12 +5,13 @@ phases:
     runtime-versions:
       nodejs: 20
     commands:
-      - cd backend/e2e
+      # CodeBuild はフェーズ間で cwd を引き継ぐため絶対パスで cd する
+      - cd "$CODEBUILD_SRC_DIR/backend/e2e"
       - npm ci
   build:
     commands:
       - echo "Resolved source = $CODEBUILD_RESOLVED_SOURCE_VERSION"
       - echo "Target = $API_BASE_URL"
       # API テストのみのためブラウザインストール（playwright install）は不要
-      - cd backend/e2e
+      - cd "$CODEBUILD_SRC_DIR/backend/e2e"
       - npx playwright test
