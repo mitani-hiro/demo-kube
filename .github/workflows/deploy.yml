@@ -3,67 +3,184 @@ name: Build and Deploy to EKS
 on:
   push:
     branches: ["develop"]
+  workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: deploy-develop
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: ap-northeast-1
+  ECR_REPOSITORY: public.ecr.aws/h7f0r1p2/demo-kube
+
 jobs:
-  build-and-deploy:
-    name: Build, Push to ECR Public and Deploy to EKS
+  changes:
+    name: Detect changed services
     runs-on: ubuntu-latest
-
-    env:
-      AWS_REGION: ap-northeast-1
-      CLUSTER_NAME: eks-cluster-demo
-      NAMESPACE: demo
-      ECR_REPOSITORY: public.ecr.aws/h7f0r1p2/demo-kube
-
+    outputs:
+      services: ${{ steps.matrix.outputs.services }}
     steps:
-      - name: Checkout source code
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Filter changed paths
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            shared:
+              - 'backend/common/**'
+              - 'backend/proto/**'
+            api:
+              - 'backend/api/**'
+            producer:
+              - 'backend/kafka/producer/**'
+            consumer:
+              - 'backend/kafka/consumer/**'
+
+      - name: Build service matrix
+        id: matrix
+        env:
+          SHARED: ${{ steps.filter.outputs.shared }}
+          API: ${{ steps.filter.outputs.api }}
+          PRODUCER: ${{ steps.filter.outputs.producer }}
+          CONSUMER: ${{ steps.filter.outputs.consumer }}
+        run: |
+          services=()
+          # common/proto の変更は全サービスに影響するため全ビルド
+          if [ "$SHARED" = "true" ]; then
+            services=(api producer consumer)
+          else
+            [ "$API" = "true" ] && services+=(api)
+            [ "$PRODUCER" = "true" ] && services+=(producer)
+            [ "$CONSUMER" = "true" ] && services+=(consumer)
+          fi
+          json=$(printf '%s\n' "${services[@]}" | jq -R . | jq -cs 'map(select(length > 0))')
+          echo "services=$json" >> "$GITHUB_OUTPUT"
+          echo "build targets: $json"
+
+  build:
+    name: Build and push (${{ matrix.service }})
+    needs: changes
+    if: needs.changes.outputs.services != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: ${{ fromJSON(needs.changes.outputs.services) }}
+        include:
+          - service: api
+            dockerfile: backend/api/Dockerfile
+          - service: producer
+            dockerfile: backend/kafka/producer/Dockerfile
+          - service: consumer
+            dockerfile: backend/kafka/consumer/Dockerfile
+    steps:
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v2
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::421156463971:role/eks-oidc-deloy-role
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
       - name: Login to Amazon ECR Public
         run: aws ecr-public get-login-password --region us-east-1 | docker login --username AWS --password-stdin public.ecr.aws
 
-      - name: Build producer Docker image
-        run: |
-          docker build -t $ECR_REPOSITORY:producer -f backend/kafka/producer/Dockerfile .
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-      - name: Build consumer Docker image
-        run: |
-          docker build -t $ECR_REPOSITORY:consumer -f backend/kafka/consumer/Dockerfile .
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          push: true
+          tags: ${{ env.ECR_REPOSITORY }}:${{ matrix.service }}
+          cache-from: type=gha,scope=${{ matrix.service }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.service }}
 
-      - name: Build api Docker image
-        run: |
-          docker build -t $ECR_REPOSITORY:api -f backend/api/Dockerfile .
+  deploy:
+    name: Deploy to EKS and verify
+    needs: [changes, build]
+    # ビルド対象がない場合（マニフェストのみの変更）でもデプロイは実行する
+    if: always() && needs.changes.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    runs-on: ubuntu-latest
+    env:
+      NAMESPACE: demo
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Push producer image to ECR Public
-        run: |
-          docker push $ECR_REPOSITORY:producer
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Push consumer image to ECR Public
-        run: |
-          docker push $ECR_REPOSITORY:consumer
+      - name: Set up kubeconfig
+        run: aws eks update-kubeconfig --region "$AWS_REGION" --name "${{ vars.EKS_CLUSTER_NAME }}"
 
-      - name: Push api image to ECR Public
+      - name: Deploy manifests (kustomize)
+        env:
+          WAF_ACL_ARN: ${{ vars.WAF_ACL_ARN }}
         run: |
-          docker push $ECR_REPOSITORY:api
+          kubectl kustomize backend/deployment/overlays/develop \
+            | envsubst '$WAF_ACL_ARN' \
+            | kubectl apply -f -
 
-      - name: Set up kubeconfig manually
-        run: |
-          aws eks --region $AWS_REGION update-kubeconfig \
-            --name $CLUSTER_NAME
+      - name: Restart deployments to pick up new images
+        if: needs.build.result == 'success'
+        run: kubectl rollout restart deployment api producer consumer -n "$NAMESPACE"
 
-      - name: Deploy Kafka and Apps to EKS
+      - name: Wait for rollout
         run: |
-          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/kafka-deployment_dev.yaml
-          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/producer_dev.yaml
-          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/consumer_dev.yaml
-          kubectl apply --validate=false -n $NAMESPACE -f backend/deployment/api_dev.yaml
+          kubectl rollout status statefulset/kafka -n "$NAMESPACE" --timeout=300s
+          for d in api producer consumer opa trino; do
+            kubectl rollout status deployment/"$d" -n "$NAMESPACE" --timeout=300s
+          done
+
+      - name: Smoke test (in-cluster)
+        run: |
+          kubectl run smoke-test --rm -i --restart=Never -n "$NAMESPACE" \
+            --image=curlimages/curl:8.13.0 -- \
+            -fsS --retry 5 --retry-delay 5 --retry-all-errors \
+            -X POST http://api-service:8080/api/hoge
+          echo ""
+          echo "in-cluster API call: OK"
+
+      - name: Verify consumer received message
+        run: |
+          sleep 5
+          kubectl logs deployment/consumer -n "$NAMESPACE" --tail=20 | grep "received message" \
+            && echo "consumer consumption: OK"
+
+      - name: Verify WAF geo restriction (expect 403 from US runner)
+        run: |
+          ALB_DNS=""
+          for i in $(seq 1 30); do
+            ALB_DNS=$(kubectl get ingress api -n "$NAMESPACE" -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+            [ -n "$ALB_DNS" ] && break
+            echo "waiting for ALB provisioning... ($i/30)"
+            sleep 10
+          done
+          if [ -z "$ALB_DNS" ]; then
+            echo "ALB DNS not assigned"; exit 1
+          fi
+          echo "ALB: $ALB_DNS"
+          # GitHub ランナーは US リージョンのため、Geo 制限 (JP のみ許可) が効いていれば 403 になる
+          for i in $(seq 1 18); do
+            STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST "http://$ALB_DNS/api/hoge" || true)
+            echo "attempt $i: HTTP $STATUS"
+            if [ "$STATUS" = "403" ]; then
+              echo "WAF geo restriction: OK (blocked from US)"
+              exit 0
+            fi
+            sleep 10
+          done
+          echo "WAF did not return 403 from US runner"
+          exit 1

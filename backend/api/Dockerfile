@@ -1,24 +1,23 @@
-FROM golang:1.25-alpine
-
+FROM golang:1.24-alpine AS builder
 WORKDIR /app
 
-COPY ./backend/proto/go.mod ./backend/proto/
-COPY ./backend/proto/ ./backend/proto/
-
-COPY ./backend/common/go.mod ./backend/common/
-COPY ./backend/common/ ./backend/common/
-
-COPY ./backend/api/go.mod ./backend/api/
-COPY ./backend/api/ ./backend/api/
+# go.mod/go.sum を先にコピーして依存ダウンロードをレイヤキャッシュさせる
+COPY backend/proto/go.mod backend/proto/go.sum backend/proto/
+COPY backend/common/go.mod backend/common/go.sum backend/common/
+COPY backend/api/go.mod backend/api/go.sum backend/api/
 
 WORKDIR /app/backend/api
-
 RUN go mod download
 
-RUN go install github.com/air-verse/air@latest
+COPY backend/proto/ /app/backend/proto/
+COPY backend/common/ /app/backend/common/
+COPY backend/api/ /app/backend/api/
 
-RUN go build -o /app/main main.go
+RUN CGO_ENABLED=0 GOOS=linux go build -o /app/api main.go
 
-WORKDIR /app
-
-CMD [ "/app/main" ] 
+FROM alpine:3.21
+RUN apk --no-cache add ca-certificates
+WORKDIR /root/
+COPY --from=builder /app/api .
+EXPOSE 8080
+CMD ["./api"]

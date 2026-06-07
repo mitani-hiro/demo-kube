@@ -15,4 +15,5 @@ message GetUserRequest {
 message GetUserResponse {
   uint64 id = 1;
   string name = 2;
+  string hostname = 3;
 }

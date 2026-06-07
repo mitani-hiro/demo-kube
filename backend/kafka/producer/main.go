@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"context"
 	"log"
 	"net"
 	"os"
@@ -9,6 +9,7 @@ import (
 	"syscall"
 
 	"common/ckafka"
+	"producer/internal/infrastructure"
 	"producer/internal/interface/handler"
 	"producer/internal/usecase"
 	"proto/pb"
@@ -16,36 +17,44 @@ import (
 	"google.golang.org/grpc"
 )
 
+const defaultBroker = "kafka-service:9092"
+
 func main() {
-	if err := ckafka.InitKafka(); err != nil {
-		fmt.Printf("Failed to initialize Kafka: %v\n", err)
-		return
+	broker := os.Getenv("KAFKA_BROKER")
+	if broker == "" {
+		broker = defaultBroker
 	}
+
+	writer, err := ckafka.NewWriter(broker, "test-topic")
+	if err != nil {
+		log.Fatalf("init kafka writer: %v", err)
+	}
+	defer writer.Close()
+
+	publisher := infrastructure.NewKafkaPublisher(writer)
+	userUC := usecase.NewUserUsecase(publisher)
+	userHandler := handler.NewUserHandler(userUC)
+
+	grpcServer := grpc.NewServer()
+	pb.RegisterUserServiceServer(grpcServer, userHandler)
 
 	lis, err := net.Listen("tcp", ":50051")
 	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
+		log.Fatalf("listen: %v", err)
 	}
 
-	grpcServer := grpc.NewServer()
-	userUC := usecase.NewUserUsecase()
-	userHandler := handler.NewUserHandler(userUC)
-	pb.RegisterUserServiceServer(grpcServer, userHandler)
+	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	defer stop()
 
-	// サーバー起動を別 goroutine で
 	go func() {
-		fmt.Println("gRPC server started on :50051")
+		log.Println("gRPC server started on :50051")
 		if err := grpcServer.Serve(lis); err != nil {
-			log.Fatalf("failed to serve: %v", err)
+			log.Printf("serve: %v", err)
 		}
 	}()
 
-	// シグナルをキャッチ
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-
-	<-stop
-	log.Println("Gracefully stopping gRPC server...")
+	<-ctx.Done()
+	log.Println("gracefully stopping gRPC server...")
 	grpcServer.GracefulStop()
-	log.Println("Server stopped.")
+	log.Println("server stopped")
 }

@@ -1,0 +1,72 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: kafka-service
+spec:
+  selector:
+    app: kafka
+  ports:
+    - name: kafka
+      protocol: TCP
+      port: 9092
+      targetPort: 9092
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: kafka
+spec:
+  serviceName: kafka-service
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kafka
+  template:
+    metadata:
+      labels:
+        app: kafka
+    spec:
+      containers:
+        - name: kafka
+          image: apache/kafka:3.7.0
+          command:
+            - sh
+            - -c
+            - |
+              export KAFKA_CLUSTER_ID=$(/opt/kafka/bin/kafka-storage.sh random-uuid)
+              /opt/kafka/bin/kafka-storage.sh format -t $KAFKA_CLUSTER_ID -c /opt/kafka/config/kraft/server.properties
+
+              # advertised.listeners はサービス短縮名。クライアントは同一 namespace 前提
+              /opt/kafka/bin/kafka-server-start.sh /opt/kafka/config/kraft/server.properties \
+                --override node.id=1 \
+                --override process.roles=broker,controller \
+                --override controller.quorum.voters=1@localhost:9093 \
+                --override listeners=PLAINTEXT://:9092,CONTROLLER://:9093 \
+                --override advertised.listeners=PLAINTEXT://kafka-service:9092 \
+                --override listener.security.protocol.map=CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT \
+                --override controller.listener.names=CONTROLLER \
+                --override inter.broker.listener.name=PLAINTEXT \
+                --override auto.create.topics.enable=true \
+                --override log.dirs=/tmp/kraft-combined-logs
+          ports:
+            - containerPort: 9092
+              name: kafka
+            - containerPort: 9093
+              name: controller
+          resources:
+            requests:
+              memory: "1Gi"
+              cpu: "500m"
+            limits:
+              memory: "2Gi"
+              cpu: "1000m"
+          volumeMounts:
+            # kafka-storage.sh format がデフォルト設定の /tmp/kraft-combined-logs を
+            # フォーマットするため、log.dirs と一致させる必要がある
+            - name: kafka-data
+              mountPath: /tmp/kraft-combined-logs
+      volumes:
+        # 検証用途のため永続化しない（EBS CSI ドライバー依存を避ける）
+        - name: kafka-data
+          emptyDir: {}

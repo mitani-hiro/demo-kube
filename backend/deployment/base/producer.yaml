@@ -1,0 +1,47 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: producer-service
+spec:
+  selector:
+    app: producer
+  ports:
+    - name: grpc
+      protocol: TCP
+      port: 50051
+      targetPort: 50051
+  type: ClusterIP
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: producer
+  labels:
+    app: producer
+spec:
+  # gRPC コネクション戦略による負荷分散挙動の検証用に複数レプリカ
+  replicas: 3
+  selector:
+    matchLabels:
+      app: producer
+  template:
+    metadata:
+      labels:
+        app: producer
+    spec:
+      containers:
+        - name: producer
+          image: producer:latest
+          ports:
+            - containerPort: 50051
+              name: grpc
+          env:
+            - name: KAFKA_BROKER
+              value: kafka-service:9092
+          resources:
+            requests:
+              memory: "128Mi"
+              cpu: "250m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"

@@ -1,35 +1,29 @@
 package usecase
 
 import (
-	"common/ckafka"
 	"context"
-	"log"
-	"producer/internal/domain"
+	"fmt"
 
-	"github.com/segmentio/kafka-go"
+	"producer/internal/domain"
 )
 
 type UserUsecase interface {
-	GetUser(id uint64) (*domain.User, error)
+	GetUser(ctx context.Context, id uint64) (*domain.User, error)
 }
 
-type userUsecase struct{}
-
-func NewUserUsecase() UserUsecase {
-	return &userUsecase{}
+type userUsecase struct {
+	pub domain.MessagePublisher
 }
 
-func (u *userUsecase) GetUser(id uint64) (*domain.User, error) {
-	message := kafka.Message{
-		Key:   []byte("Key-A"),
-		Value: []byte("Hello Kafka from Go!"),
+func NewUserUsecase(pub domain.MessagePublisher) UserUsecase {
+	return &userUsecase{pub: pub}
+}
+
+func (u *userUsecase) GetUser(ctx context.Context, id uint64) (*domain.User, error) {
+	if err := u.pub.Publish(ctx, []byte("Key-A"), []byte("Hello Kafka from Go!")); err != nil {
+		return nil, fmt.Errorf("publish message: %w", err)
 	}
 
-	if err := ckafka.KafkaWriter.WriteMessages(context.Background(), message); err != nil {
-		log.Fatal("failed to write messages:", err)
-	}
-
-	// 仮データ返却
 	return &domain.User{
 		ID:   id,
 		Name: "Taro Yamada",
