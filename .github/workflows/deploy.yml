@@ -173,6 +173,7 @@ jobs:
           exit 1
 
       - name: Verify WAF geo restriction (expect 403 from US runner)
+        id: waf
         run: |
           ALB_DNS=""
           for i in $(seq 1 30); do
@@ -185,6 +186,7 @@ jobs:
             echo "ALB DNS not assigned"; exit 1
           fi
           echo "ALB: $ALB_DNS"
+          echo "alb_url=http://$ALB_DNS" >> "$GITHUB_OUTPUT"
           # GitHub ランナーは US リージョンのため、Geo 制限 (JP のみ許可) が効いていれば 403 になる
           for i in $(seq 1 18); do
             STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 -X POST "http://$ALB_DNS/api/hoge" || true)
@@ -197,3 +199,30 @@ jobs:
           done
           echo "WAF did not return 403 from US runner"
           exit 1
+    outputs:
+      alb_url: ${{ steps.waf.outputs.alb_url }}
+
+  e2e:
+    name: E2E via CodeBuild (Tokyo, passes WAF)
+    needs: [changes, deploy]
+    # GHA ランナー(US)は WAF の Geo 制限で弾かれるため、東京リージョンの CodeBuild から実行する。
+    # api のコード変更時（または手動実行時）のみ走らせる
+    if: >-
+      always() && needs.deploy.result == 'success' &&
+      (github.event_name == 'workflow_dispatch' || contains(fromJSON(needs.changes.outputs.services), 'api'))
+    runs-on: ubuntu-latest
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Run Playwright API E2E on CodeBuild
+        uses: aws-actions/aws-codebuild-run-build@v1
+        with:
+          project-name: ${{ vars.E2E_CODEBUILD_PROJECT }}
+          source-version-override: ${{ github.sha }}
+          env-vars-for-codebuild: API_BASE_URL
+        env:
+          API_BASE_URL: ${{ needs.deploy.outputs.alb_url }}
