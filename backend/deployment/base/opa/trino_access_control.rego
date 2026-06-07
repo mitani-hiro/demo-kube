@@ -3,49 +3,59 @@ package trino.access_control
 import rego.v1
 
 # デフォルトでは拒否
-default allow = false
+default allow := false
 
 # ユーザーとロールの定義
 user_roles := {
-    "alice": ["admin", "data_analyst"],
-    "bob": ["data_analyst"],
-    "charlie": ["data_viewer"],
-    "david": ["finance_user"]
+	"alice": ["admin", "data_analyst"],
+	"bob": ["data_analyst"],
+	"charlie": ["data_viewer"],
+	"david": ["finance_user"],
 }
 
-# テーブルアクセス権限の定義
-table_permissions := {
-    "admin": {
-        "operations": ["SELECT", "INSERT", "UPDATE", "DELETE", "CREATE", "DROP"]
-    },
-    "data_analyst": {
-        "operations": ["SELECT", "INSERT", "UPDATE"]
-    },
-    "data_viewer": {
-        "operations": ["SELECT"]
-    },
-    "finance_user": {
-        "operations": ["SELECT"]
-    }
+# Trino の OPA プラグインが送る実際の operation 名で定義する
+# （SELECT/INSERT といった SQL 名ではなく ExecuteQuery 等が渡ってくる）
+read_operations := {
+	"ExecuteQuery",
+	"AccessCatalog",
+	"SelectFromColumns",
+	"FilterCatalogs",
+	"FilterSchemas",
+	"FilterTables",
+	"FilterColumns",
+	"ShowSchemas",
+	"ShowTables",
+	"ShowColumns",
+	"GetColumnMask",
+	"GetRowFilters",
+	"ExecuteFunction",
+	"FilterFunctions",
 }
 
-# ユーザーがロールを持っているかチェック
-has_role(user, role) if {
-    role in user_roles[user]
+write_operations := {
+	"InsertIntoTable",
+	"DeleteFromTable",
+	"UpdateTableColumns",
+	"TruncateTable",
 }
 
-# ロールが操作を実行できるかチェック
-role_can_perform_operation(role, operation) if {
-    operation in table_permissions[role].operations
+# admin は全操作を許可
+operation_allowed("admin", _)
+
+operation_allowed("data_analyst", operation) if {
+	operation in (read_operations | write_operations)
 }
 
-# メインのallow判定 - Trinoが期待する形式
+operation_allowed("data_viewer", operation) if {
+	operation in read_operations
+}
+
+operation_allowed("finance_user", operation) if {
+	operation in read_operations
+}
+
 allow if {
-    print("#### input: ", input)
-
-    user := input.context.identity.user
-    operation := input.action.operation
-
-    some role in user_roles[user]
-    role_can_perform_operation(role, operation)
+	user := input.context.identity.user
+	some role in user_roles[user]
+	operation_allowed(role, input.action.operation)
 }
