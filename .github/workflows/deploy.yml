@@ -63,6 +63,29 @@ jobs:
           echo "services=$json" >> "$GITHUB_OUTPUT"
           echo "build targets: $json"
 
+  preflight:
+    name: Check EKS cluster exists
+    runs-on: ubuntu-latest
+    outputs:
+      cluster_exists: ${{ steps.check.outputs.exists }}
+    steps:
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Check cluster
+        id: check
+        run: |
+          # 検証時のみ apply するコスト運用のため、destroy 中でも push が失敗しないようにする
+          if aws eks describe-cluster --region "$AWS_REGION" --name "${{ vars.EKS_CLUSTER_NAME }}" > /dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::EKS cluster '${{ vars.EKS_CLUSTER_NAME }}' not found (destroyed?). Deploy will be skipped."
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build:
     name: Build and push (${{ matrix.service }})
     needs: changes
@@ -106,9 +129,13 @@ jobs:
 
   deploy:
     name: Deploy to EKS and verify
-    needs: [changes, build]
-    # ビルド対象がない場合（マニフェストのみの変更）でもデプロイは実行する
-    if: always() && needs.changes.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped')
+    needs: [changes, build, preflight]
+    # ビルド対象がない場合（マニフェストのみの変更）でもデプロイは実行する。
+    # クラスタ不在時（terraform destroy 後）は正常スキップ
+    if: >-
+      always() && needs.changes.result == 'success' &&
+      (needs.build.result == 'success' || needs.build.result == 'skipped') &&
+      needs.preflight.outputs.cluster_exists == 'true'
     runs-on: ubuntu-latest
     env:
       NAMESPACE: demo

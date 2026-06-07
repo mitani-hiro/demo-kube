@@ -57,10 +57,16 @@ resource "helm_release" "aws_load_balancer_controller" {
 # - GHA ロールの権限を namespace スコープに限定できる（namespace 作成権限が不要になる）
 # - destroy 時に namespace 削除 → Ingress/ALB のカスケード削除が LBC 稼働中に行われる
 #   （depends_on により LBC より先に削除されるため ALB が孤児にならない）
+# - module.vpc への depends_on は destroy 順序のため:
+#   VPC のルート（NAT 向け）が namespace より先に消えると LBC が AWS API に
+#   到達できず ALB を削除できなくなる（destroy がデッドロックする）
 resource "kubernetes_namespace" "app" {
   metadata {
     name = var.app_namespace
   }
 
-  depends_on = [helm_release.aws_load_balancer_controller]
+  depends_on = [
+    helm_release.aws_load_balancer_controller,
+    module.vpc,
+  ]
 }

@@ -35,6 +35,73 @@ graph LR
 - **common** (`backend/common`): `ckafka`（Writer/Readerコンストラクタ）と `cgrpc`（接続ヘルパー）
 - **proto** (`backend/proto`): protobuf定義（`user.proto`）
 
+## ネットワーク構成（EKS / AWS）
+
+```mermaid
+graph TB
+    Client((クライアント))
+    ECR["ECR Public<br>(イメージレジストリ)"]
+    CP["EKSコントロールプレーン<br>(AWS管理・VPC外)"]
+
+    subgraph VPC["VPC 10.0.0.0/16"]
+        IGW["インターネット<br>ゲートウェイ"]
+
+        subgraph PubA["パブリックサブネット 1a<br>10.0.0.0/20"]
+            ALB1["ALB ENI"]
+            NAT["NAT Gateway<br>(×1 コスト優先)"]
+        end
+
+        subgraph PubC["パブリックサブネット 1c<br>10.0.16.0/20"]
+            ALB2["ALB ENI"]
+        end
+
+        subgraph PrivA["プライベートサブネット 1a<br>10.0.128.0/20"]
+            Node["EKSワーカーノード<br>t3.large SPOT"]
+            APIPod["api Pod :8080<br>(vpc-cniがVPC内IPを直接付与)"]
+        end
+
+        subgraph PrivC["プライベートサブネット 1c<br>10.0.144.0/20"]
+            Spare["(ノード増設用<br>予備AZ)"]
+        end
+    end
+
+    Client -- "① HTTP:80<br>(WAFがGeo評価:JP以外403)" --> IGW
+    IGW --> ALB1 & ALB2
+    ALB1 -- "② target-type: ip<br>Pod IPへ直接転送" --> APIPod
+    APIPod -. "③ アウトバウンド<br>(ECR pull等)" .-> NAT
+    NAT -.-> IGW
+    IGW -. "④" .-> ECR
+    Node <-- "kubelet ⇔ APIサーバー" --> CP
+```
+
+### ルートテーブル
+
+| ルートテーブル | 関連付け | ルート |
+|---|---|---|
+| パブリックRT | パブリックサブネット ×2 | `10.0.0.0/16 → local` / `0.0.0.0/0 → IGW` |
+| プライベートRT | プライベートサブネット ×2 | `10.0.0.0/16 → local` / `0.0.0.0/0 → NAT Gateway` |
+
+- ワーカーノード・Podは**プライベートサブネット**にいるため、インターネットから直接到達できない（インバウンドはALB経由のみ）
+- アウトバウンド（ECR Public のイメージpull等）はNAT Gateway経由。NATは1aに1つだけなので、1cのリソースのアウトバウンドも1aのNATを通る（コスト優先のシングルNAT構成）
+
+### セキュリティグループ（通信経路の制御）
+
+| SG | アタッチ先 | インバウンド許可 |
+|---|---|---|
+| ALB用SG（LBコントローラーが自動作成） | ALB | `0.0.0.0/0 → :80`（Geo制限はSGでなく**WAF**が担当） |
+| ノードSG（EKSモジュールが作成） | ワーカーノード/Pod ENI | ALB用SG → Pod port（LBコントローラーが自動でルール追加）、ノード間通信、コントロールプレーン → kubelet |
+| クラスタSG | コントロールプレーンENI | ノード ⇔ APIサーバー(443) |
+
+### リクエストの通り道（まとめ）
+
+```
+インバウンド:  クライアント → IGW → ALB(パブリック)［WAFがここで評価］
+              → ノードSGを通過 → api Pod(プライベート、:8080)
+アウトバウンド: Pod → プライベートRT → NAT GW(パブリック1a) → IGW → インターネット
+```
+
+ポイントは **ALBの`target-type: ip`**。NodePort（ノードのポート経由）ではなく、vpc-cniがPodに付与したVPC内IPへALBが直接ルーティングするため、経路がシンプルでホップが少ない。
+
 ## 開発手順
 
 ### ローカル開発（kind）
@@ -100,6 +167,11 @@ cd backend/terraform/bootstrap && terraform init && terraform apply
 cd backend/terraform/environments/dev
 terraform init && terraform apply    # 約15〜20分
 terraform destroy                    # 検証後は必ずdestroy（コスト対策）
+```
+
+- apply後
+```bash
+gh variable set WAF_ACL_ARN
 ```
 
 ### CI/CD（GitHub Actions）
