@@ -15,6 +15,75 @@
 | trino | SQLクエリエンジン（OPAでアクセス制御） | 8080 |
 | opa | ポリシー決定エンジン | 8181 |
 
+## クラスタの切り替え（kind ⇔ EKS）
+
+kubeconfig に両クラスタの context を登録して切り替える。
+
+```sh
+# EKS の context を登録（terraform apply でクラスタを作り直すたびに再実行する）
+AWS_PROFILE=personal aws eks update-kubeconfig --name demo-kube-dev --region ap-northeast-1 --alias demo-kube-dev
+
+# context 一覧と現在の context
+kubectl config get-contexts
+
+# 切り替え
+kubectl config use-context kind-demo-cluster   # ローカル（kind）
+kubectl config use-context demo-kube-dev       # EKS
+
+# 切り替えずに単発で操作する場合は --context を付ける
+kubectl --context kind-demo-cluster get pods
+kubectl --context demo-kube-dev get pods -n demo
+```
+
+※ EKS の認証プロファイル（AWS_PROFILE=personal）は kubeconfig に埋め込まれるため、環境変数の設定は不要。
+※ namespace は kind=`default`、EKS=`demo`（EKS 操作時は `-n demo` を付ける）。
+
+## curl での疎通確認
+
+### ローカル（kind）
+
+ALB がないため port-forward 経由で叩く。
+
+```sh
+kubectl --context kind-demo-cluster port-forward svc/api-service 8080:8080 &
+
+# ヘルスチェック
+curl localhost:8080/api/health
+# => {} [200]
+
+# E2E（API → gRPC → Producer → Kafka → Consumer）
+curl -X POST localhost:8080/api/hoge
+# => {"hostname":"producer-xxxxx","id":999,"name":"Taro Yamada"}
+
+# consumer がメッセージを受信していることを確認
+kubectl --context kind-demo-cluster logs deployment/consumer --tail=5
+# => "received message: Hello Kafka from Go!" が出ればE2E疎通OK
+```
+
+### EKS（ALB / WAF 経由）
+
+ALB の DNS 名は apply のたびに変わるため Ingress から取得する。
+
+```sh
+ALB=$(kubectl --context demo-kube-dev get ingress api -n demo \
+  -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+
+# ヘルスチェック
+curl "http://$ALB/api/health"
+# => {} [200]
+
+# E2E（WAF → ALB → API → gRPC → Producer → Kafka → Consumer）
+curl -X POST "http://$ALB/api/hoge"
+# => {"hostname":"producer-xxxxx","id":999,"name":"Taro Yamada"}
+
+# consumer がメッセージを受信していることを確認
+kubectl --context demo-kube-dev logs deployment/consumer -n demo --tail=5
+# => "received message: Hello Kafka from Go!"
+```
+
+※ WAF が日本のみ許可のため、日本国外からのリクエストは 403 になる（GitHub Actions の US ランナーからの 403 はこの仕様を逆手に取った WAF 動作確認）。
+※ ALB を経由せず確認したい場合は kind と同様に `kubectl --context demo-kube-dev port-forward svc/api-service 8080:8080 -n demo` でも可。
+
 ## ローカル開発（kind）
 
 ```sh
@@ -56,10 +125,11 @@ backend/deployment/
 ```sh
 kubectl exec -it kafka-0 -- bash
 /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
-/opt/kafka/bin/kafka-consumer-groups.sh --bootstrap-server localhost:9092 --describe --group test-consumer-group
+/opt/kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic test-topic
 ```
 
 トピック `test-topic` は自動作成される（auto.create.topics.enable=true）。
+consumer はグループを使わずパーティション0を直読みする（コーディネーター未準備時のグループ参加スタック回避）。
 
 ## Trino + OPA
 
@@ -104,10 +174,4 @@ terraform destroy
 
 必要なGitHub Variables: `AWS_DEPLOY_ROLE_ARN` / `EKS_CLUSTER_NAME` / `WAF_ACL_ARN`（terraform output の値を設定）。
 
-日本からのALB疎通確認:
-
-```sh
-aws eks update-kubeconfig --name demo-kube-dev --profile personal --region ap-northeast-1
-kubectl get ingress api -n demo   # ALB DNSを取得
-curl -X POST http://<ALB_DNS>/api/hoge
-```
+デプロイ後の手動確認は「curl での疎通確認 > EKS」を参照。
