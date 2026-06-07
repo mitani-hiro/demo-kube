@@ -1,3 +1,13 @@
+variable "codebuild_e2e_log_group_arn" {
+  description = "ARN of the CloudWatch log group of the E2E CodeBuild project (for streaming build logs)"
+  type        = string
+}
+
+variable "codebuild_e2e_project_arn" {
+  description = "ARN of the E2E CodeBuild project the role may start"
+  type        = string
+}
+
 variable "ecr_public_repository_arn" {
   description = "ARN of the ECR Public repository the role may push images to"
   type        = string

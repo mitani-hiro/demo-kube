@@ -58,6 +58,23 @@ data "aws_iam_policy_document" "deploy" {
     actions   = ["eks:DescribeCluster"]
     resources = [var.eks_cluster_arn]
   }
+
+  # E2E CodeBuild の起動と完了待ち（aws-codebuild-run-build Action が使用）
+  statement {
+    sid = "CodeBuildE2E"
+    actions = [
+      "codebuild:BatchGetBuilds",
+      "codebuild:StartBuild",
+    ]
+    resources = [var.codebuild_e2e_project_arn]
+  }
+
+  # ビルドログを GHA にストリームするための読み取り
+  statement {
+    sid       = "CodeBuildE2ELogs"
+    actions   = ["logs:GetLogEvents"]
+    resources = ["${var.codebuild_e2e_log_group_arn}:*"]
+  }
 }
 
 resource "aws_iam_role_policy" "deploy" {
