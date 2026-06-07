@@ -13,6 +13,11 @@ crash.*.log
 *.test
 *.out
 
+# Node / Playwright
+node_modules/
+test-results/
+playwright-report/
+
 # IDE / OS
 .idea/
 .vscode/

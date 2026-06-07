@@ -1,0 +1,62 @@
+# 検証用ワークフロー: GHAホストランナー（US）からALB（WAF: 日本のみ許可）へ
+# Playwright APIテストを直接実行し、Geo制限でブロックされることを確認する。
+# 検証完了後は削除し、CodeBuild経由のe2eジョブをdeploy.ymlに統合する。
+name: E2E Verify (from GHA runner)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-northeast-1
+  NAMESPACE: demo
+
+jobs:
+  e2e-from-runner:
+    name: Playwright from GHA runner (expect WAF block)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: backend/e2e/package-lock.json
+
+      - name: Install dependencies
+        working-directory: backend/e2e
+        run: npm ci
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get ALB DNS
+        id: alb
+        run: |
+          aws eks update-kubeconfig --region "$AWS_REGION" --name "${{ vars.EKS_CLUSTER_NAME }}"
+          ALB_DNS=$(kubectl get ingress api -n "$NAMESPACE" \
+            -o jsonpath='{.status.loadBalancer.ingress[0].hostname}')
+          [ -n "$ALB_DNS" ] || { echo "::error::ALB DNS not found"; exit 1; }
+          echo "url=http://$ALB_DNS" >> "$GITHUB_OUTPUT"
+          echo "ALB: $ALB_DNS"
+
+      - name: Show runner public IP and region info
+        run: |
+          IP=$(curl -s https://checkip.amazonaws.com)
+          echo "Runner public IP: $IP"
+          curl -s "https://ipinfo.io/$IP/json" || true
+
+      - name: Run Playwright API tests against ALB
+        working-directory: backend/e2e
+        env:
+          API_BASE_URL: ${{ steps.alb.outputs.url }}
+        run: npx playwright test

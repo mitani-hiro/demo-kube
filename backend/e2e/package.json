@@ -1,0 +1,13 @@
+{
+  "name": "demo-kube-e2e",
+  "version": "1.0.0",
+  "private": true,
+  "description": "API E2E tests (Playwright request API, no browser)",
+  "scripts": {
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.53.0",
+    "typescript": "^5.8.0"
+  }
+}

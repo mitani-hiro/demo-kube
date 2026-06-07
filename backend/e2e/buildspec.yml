@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - cd backend/e2e
+      - npm ci
+  build:
+    commands:
+      - echo "Resolved source = $CODEBUILD_RESOLVED_SOURCE_VERSION"
+      - echo "Target = $API_BASE_URL"
+      # API テストのみのためブラウザインストール（playwright install）は不要
+      - cd backend/e2e
+      - npx playwright test
